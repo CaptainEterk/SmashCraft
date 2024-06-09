@@ -1,77 +1,88 @@
 package smashcraft.renderer;
 
-import org.lwjgl.opengl.GL11;
+import org.joml.Matrix4f;
 import smashcraft.renderer.shaders.ShaderProgram;
 import smashcraft.renderer.textures.TextureLoader;
+import smashcraft.structure.block.Block;
+import smashcraft.structure.block.BlockData;
+import smashcraft.structure.block.BlockHandler;
+import smashcraft.structure.block.BlockType;
+import smashcraft.structure.chunk.Chunk;
 
-import static org.lwjgl.glfw.GLFW.glfwGetTime;
-import static org.lwjgl.opengl.GL11C.GL_FLOAT;
+import java.util.*;
+
+import static org.lwjgl.opengl.GL11C.GL_TRIANGLES;
+import static org.lwjgl.opengl.GL11C.GL_UNSIGNED_INT;
 import static org.lwjgl.opengl.GL15C.*;
-import static org.lwjgl.opengl.GL15C.GL_ARRAY_BUFFER;
-import static org.lwjgl.opengl.GL15C.GL_ELEMENT_ARRAY_BUFFER;
-import static org.lwjgl.opengl.GL15C.GL_STATIC_DRAW;
-import static org.lwjgl.opengl.GL20C.*;
-import static org.lwjgl.opengl.GL30.glBindVertexArray;
-import static org.lwjgl.opengl.GL30.glGenVertexArrays;
+import static org.lwjgl.opengl.GL20C.glGetUniformLocation;
+import static org.lwjgl.opengl.GL20C.glUniformMatrix4fv;
+import static org.lwjgl.opengl.GL30C.glBindVertexArray;
 
 public class WorldRenderer {
     private final int textureId;
-    private int VAO, VBO;
-    private ShaderProgram shaderProgram;
+    private final BlockHandler blockHandler;
+    private Chunk chunk;
+    private int modelLocation;
 
     public WorldRenderer(ShaderProgram shaderProgram) {
-        this.shaderProgram = shaderProgram;
-        textureId = TextureLoader.loadTexture("texture.jpg");
-        initRenderData();
+        this.textureId = TextureLoader.loadTexture("texture_atlas.png");
+        this.blockHandler = new BlockHandler();
+        this.blockHandler.initBlocks();
+        initRenderData(shaderProgram);
     }
 
-    private void initRenderData() {
-        float[] vertices = {
-                // Positions        // Texture Coords
-                -0.5f,  0.5f, -2.0f,  0.0f, 1.0f, // Top-left
-                0.5f,  0.5f, -2.0f,  1.0f, 1.0f, // Top-right
-                0.5f, -0.5f, -2.0f,  1.0f, 0.0f, // Bottom-right
-                -0.5f, -0.5f, -2.0f,  0.0f, 0.0f  // Bottom-left
-        };
-        int[] indices = {
-                0, 1, 2,
-                2, 3, 0
-        };
-
-        VAO = glGenVertexArrays();
-        VBO = glGenBuffers();
-        int EBO = glGenBuffers();
-
-        glBindVertexArray(VAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 5 * Float.BYTES, 0);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 2, GL_FLOAT, false, 5 * Float.BYTES, 3 * Float.BYTES);
-        glEnableVertexAttribArray(1);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+    private void initRenderData(ShaderProgram shaderProgram) {
+        chunk = new Chunk();
+        chunk.fill();
+        chunk.bakeAll(blockHandler);
+        modelLocation = glGetUniformLocation(shaderProgram.getShaderProgram("default"), "model");
     }
 
     public void render() {
-        float t = (float) (Math.sin(glfwGetTime()) / 2 + 0.5);
+        glBindTexture(GL_TEXTURE_2D, textureId);
 
-        glUseProgram(shaderProgram.getShaderProgram("default"));
+        // Cache blocks by type
+        Map<BlockType, List<BlockData>> blockMap = new HashMap<>();
 
-        // Bind the texture
-        glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+        for (int x = 0; x < Chunk.CHUNK_WIDTH; x++) {
+            for (int z = 0; z < Chunk.CHUNK_LENGTH; z++) {
+                for (int y = 0; y < Chunk.CHUNK_HEIGHT; y++) {
+                    BlockData data = chunk.getBlockData(x, y, z);
+                    blockMap.computeIfAbsent(data.getType(), k -> new ArrayList<>()).add(data);
+                }
+            }
+        }
 
-        // Render the quad
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        // Render blocks by type
+        for (Map.Entry<BlockType, List<BlockData>> entry : blockMap.entrySet()) {
+            BlockType type = entry.getKey();
+            List<BlockData> blockDataList = entry.getValue();
+            Block block = blockHandler.getBlock(type);
 
-        glUseProgram(0);
+            glBindVertexArray(block.getVAO());
+
+            for (BlockData blockData : blockDataList) {
+                int x = blockData.getX();
+                int y = blockData.getY();
+                int z = blockData.getZ();
+                Matrix4f translation = new Matrix4f().translate(x, y, z);
+                float[] matrix = new float[16];
+                translation.get(matrix);
+
+                glUniformMatrix4fv(modelLocation, false, matrix); // Set the matrix uniform
+
+                for (int i = 0; i < 6; i++) {
+                    if (!blockData.isFaceHidden(i)) {
+                        renderFace(i);
+                    }
+                }
+            }
+
+            glBindVertexArray(0); // Unbind the VAO
+        }
+    }
+
+    public void renderFace(int face_index) {
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, face_index * 24L); // 6 points for each face (3/triangle), and 4 bytes for each unsigned int. (6*4=24)
     }
 }

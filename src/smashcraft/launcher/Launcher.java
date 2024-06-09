@@ -32,10 +32,19 @@ public class Launcher {
         window.maximize();
         window.show();
 
-        // Run the rendering loop until the user has attempted to close the window or has pressed the ESCAPE key.
+        long oldTime = System.currentTimeMillis();
+        int frames = 0;
+
+        // Run the rendering loop until the user has attempted to close the window.
         while (!window.shouldClose()) {
+            if (System.currentTimeMillis() - oldTime > 1000) {
+                oldTime += 1000;
+                System.out.println(frames);
+                frames = 0;
+            }
             renderer.render(window.getWindow(), cameraController);
             cameraController.tick();
+            frames++;
         }
     }
 }

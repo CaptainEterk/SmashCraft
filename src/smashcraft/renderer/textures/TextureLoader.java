@@ -36,6 +36,10 @@ public class TextureLoader {
         int textureId = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, textureId);
 
+        // Assuming you're binding a texture
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
         // Tell OpenGL how to unpack the RGBA bytes. Each component is 1 byte size
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 

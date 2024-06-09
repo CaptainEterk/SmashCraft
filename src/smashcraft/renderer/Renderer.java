@@ -39,9 +39,7 @@ public class Renderer {
         viewLoc = glGetUniformLocation(shaderID, "view");
         projectionLoc = glGetUniformLocation(shaderID, "projection");
 
-        System.out.println(viewLoc + " " + projectionLoc);
-
-        updateProjection(1920f/1080f, 90, 0.1f, 100);
+        updateProjection(1920f/1080f, 90, 0.1f, 1000);
         glViewport(0, 0, 1920, 1080);
     }
 
@@ -51,7 +49,7 @@ public class Renderer {
      * Finally, poll for events using <code>glfwPollEvents</code>.
      *
      * @param window           The OpenGL window for <code>glfwSwapBuffers</code>
-     * @param cameraController
+     * @param cameraController The camera to render from
      */
     public void render(long window, CameraController cameraController) {
         // Clear the screen
@@ -63,9 +61,15 @@ public class Renderer {
         // Handle the camera view matrix
         Matrix4f viewMatrix = getViewMatrix(cameraController);
 
-
         // Set view matrix uniform
         glUniformMatrix4fv(viewLoc, false, viewMatrix.get(new float[16]));
+
+        if (cameraController.wireframe()) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        }
+        else {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
 
         // Render the world
         worldRenderer.render();

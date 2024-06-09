@@ -29,8 +29,6 @@ public class Camera {
 
     protected void rotateX(float angle) {
         rotation.x += angle;
-        if (rotation.x > Math.PI) rotation.x = (float) Math.PI;
-        if (rotation.x < -Math.PI) rotation.x = (float) -Math.PI;
     }
 
     protected void rotateY(float angle) {
